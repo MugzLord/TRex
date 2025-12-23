@@ -1,8 +1,3 @@
-print("BOOT: trex starting...")
-print("BOOT: OPENAI_VERSION =", getattr(openai, "__version__", "unknown"))
-print("BOOT: OPENAI_MODEL =", os.getenv("OPENAI_MODEL"))
-print("BOOT: HAS_KEY =", bool(os.getenv("OPENAI_API_KEY")))
-
 import os
 import asyncio
 from typing import Dict, List
@@ -11,6 +6,11 @@ import discord
 from discord.ext import commands
 
 import openai  # openai==0.28.1
+
+print("BOOT: trex starting...")
+print("BOOT: OPENAI_VERSION =", getattr(openai, "__version__", "unknown"))
+print("BOOT: OPENAI_MODEL =", os.getenv("OPENAI_MODEL"))
+print("BOOT: HAS_KEY =", bool(os.getenv("OPENAI_API_KEY")))
 
 # ======================
 # ENV
