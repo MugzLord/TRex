@@ -170,8 +170,10 @@ async def on_message(message: discord.Message):
     async with message.channel.typing():
         try:
             out = await call_openai(content, message)
-        except Exception:
+        except Exception as e:
+            print("OPENAI ERROR:", repr(e))
             out = "Yeah, no. Try that again."
+
 
     await message.reply(out, mention_author=False)
 
