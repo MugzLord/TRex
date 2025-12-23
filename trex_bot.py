@@ -1,3 +1,8 @@
+print("BOOT: trex starting...")
+print("BOOT: OPENAI_VERSION =", getattr(openai, "__version__", "unknown"))
+print("BOOT: OPENAI_MODEL =", os.getenv("OPENAI_MODEL"))
+print("BOOT: HAS_KEY =", bool(os.getenv("OPENAI_API_KEY")))
+
 import os
 import asyncio
 from typing import Dict, List
@@ -188,8 +193,9 @@ async def trex_cmd(ctx: commands.Context, *, text: str = ""):
     async with ctx.typing():
         try:
             out = await call_openai(text, ctx.message)
-        except Exception:
-            out = "Nope. Again."
+        except Exception as e:
+            print("OPENAI ERROR >>>", repr(e))
+            out = "Yeah, no. Try that again."
 
     await ctx.reply(out, mention_author=False)
 
