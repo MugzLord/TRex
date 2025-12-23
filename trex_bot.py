@@ -12,7 +12,7 @@ import openai  # openai==0.28.1
 # ======================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # model name still comes from env
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")  # model name still comes from env
 
 DINOSAUR4HIRE_USER_ID = int(os.getenv("DINOSAUR4HIRE_USER_ID", "0"))
 MIKE_USER_ID = int(os.getenv("MIKE_USER_ID", "0"))
