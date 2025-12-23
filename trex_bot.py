@@ -1,4 +1,9 @@
 import os
+
+# --- Railway proxy hotfix: prevent OpenAI client from receiving injected proxies ---
+for k in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+    os.environ.pop(k, None)
+
 import asyncio
 import sqlite3
 from datetime import datetime
