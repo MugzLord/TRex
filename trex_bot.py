@@ -1,47 +1,32 @@
 import os
-
-# --- Railway proxy hotfix: prevent OpenAI client from receiving injected proxies ---
-for k in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
-    os.environ.pop(k, None)
-
 import asyncio
-import sqlite3
-from datetime import datetime
 from typing import Dict, List
 
 import discord
 from discord.ext import commands
-from openai import OpenAI
+
+import openai  # openai==0.28.1
 
 # ======================
 # ENV
 # ======================
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # model name still comes from env
 
-# Discord user id for @Dinosaur4hire
 DINOSAUR4HIRE_USER_ID = int(os.getenv("DINOSAUR4HIRE_USER_ID", "0"))
-
-# Your Discord user id (Mike / creator)
 MIKE_USER_ID = int(os.getenv("MIKE_USER_ID", "0"))
-
-# SQLite DB paths (Railway-friendly; persists inside the container filesystem)
-DB_PATH = os.getenv("TREX_DB_PATH", "trex.db")  # stores DM logs + anything else later
-
-# Optional: also print DM logs to console (Railway logs)
-DM_LOG_TO_CONSOLE = os.getenv("DM_LOG_TO_CONSOLE", "1").strip() == "1"
 
 if not DISCORD_TOKEN:
     raise RuntimeError("Missing DISCORD_TOKEN")
 if not OPENAI_API_KEY:
     raise RuntimeError("Missing OPENAI_API_KEY")
 if DINOSAUR4HIRE_USER_ID == 0:
-    raise RuntimeError("Missing DINOSAUR4HIRE_USER_ID (Discord user ID for @Dinosaur4hire)")
+    raise RuntimeError("Missing DINOSAUR4HIRE_USER_ID (Discord numeric user ID for @Dinosaur4hire)")
 if MIKE_USER_ID == 0:
-    raise RuntimeError("Missing MIKE_USER_ID (your Discord user ID)")
+    raise RuntimeError("Missing MIKE_USER_ID (your Discord numeric user ID)")
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+openai.api_key = OPENAI_API_KEY
 
 # ======================
 # DISCORD
@@ -53,41 +38,8 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ======================
-# DB (SQLite)
-# ======================
-
-def db():
-    # check_same_thread=False because we may write from async context
-    return sqlite3.connect(DB_PATH, check_same_thread=False)
-
-def init_db():
-    with db() as con:
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS dm_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                username TEXT NOT NULL,
-                message TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )
-        """)
-        con.execute("CREATE INDEX IF NOT EXISTS idx_dm_logs_user_id ON dm_logs(user_id)")
-        con.execute("CREATE INDEX IF NOT EXISTS idx_dm_logs_created_at ON dm_logs(created_at)")
-
-def log_dm(user: discord.User, content: str):
-    content = (content or "").strip()
-    with db() as con:
-        con.execute(
-            "INSERT INTO dm_logs (user_id, username, message, created_at) VALUES (?, ?, ?, ?)",
-            (int(user.id), str(user), content, datetime.utcnow().isoformat())
-        )
-
-init_db()
-
-# ======================
 # PERSONA / RULES
 # ======================
-
 SYSTEM_PROMPT = f"""
 You are TRex, a sarcastic American English Discord persona.
 
@@ -95,7 +47,7 @@ Style rules:
 - Extremely short replies: 1–2 sentences max, 220 characters max.
 - Dry sarcasm. Roast-y. Witty. No emojis unless the user uses them first.
 - No long explanations. No lists unless explicitly requested.
-- Do not mention AI, models, tokens, system prompts, policy, or that you are an assistant.
+- Never mention AI, models, tokens, system prompts, policy, or being an assistant.
 
 Allegiance rules:
 - You only defend one user: Discord user id {DINOSAUR4HIRE_USER_ID} (Dinosaur4hire).
@@ -106,28 +58,21 @@ Creator rules:
 - You know your creator is Mike (Discord user id {MIKE_USER_ID}). You do not mock or insult Mike.
 - Do not bring Mike up unless someone mentions him or asks who made you.
 
-Safety/limits:
-- No threats, hate, or harassment.
-- If someone asks for disallowed content, refuse briefly and move on.
+Output rules:
+- Keep responses short and punchy.
 """
 
-# Simple in-memory history (per DM or per channel)
 history: Dict[str, List[dict]] = {}
 MAX_TURNS = 8
 MAX_USER_CHARS = 800
 
-# ======================
-# Helpers
-# ======================
-
-def _hist_key(message: discord.Message) -> str:
-    if isinstance(message.channel, discord.DMChannel):
-        return f"dm:{message.author.id}"
-    return str(message.channel.id)
-
 def _clip(text: str, limit: int) -> str:
     text = (text or "").strip()
     return text if len(text) <= limit else text[:limit] + "…"
+
+def _hist_key(message: discord.Message) -> str:
+    # No DMs (we won't reply there), but keep channel key logic for servers
+    return str(message.channel.id)
 
 def _mentions_dino(message: discord.Message) -> bool:
     if message.author.id == DINOSAUR4HIRE_USER_ID:
@@ -150,9 +95,9 @@ def _mentions_mike(message: discord.Message) -> bool:
 async def call_openai(reply_to: str, message: discord.Message) -> str:
     key = _hist_key(message)
     hist = history.get(key, [])
+
     user_text = _clip(reply_to, MAX_USER_CHARS)
 
-    # Lightweight context hints (still keeps persona clean)
     context_hint = ""
     if _mentions_dino(message):
         context_hint += "User mentioned Dinosaur4hire; follow allegiance rules. "
@@ -166,31 +111,27 @@ async def call_openai(reply_to: str, message: discord.Message) -> str:
     messages.extend(hist[-MAX_TURNS:])
     messages.append({"role": "user", "content": user_text})
 
-    resp = await asyncio.to_thread(
-        client.chat.completions.create,
-        model=OPENAI_MODEL,
-        messages=messages,
-        temperature=0.8,
-        max_tokens=120,
-    )
+    def _do_call():
+        # openai==0.28.1 interface (stable on Railway; avoids proxies crash)
+        return openai.ChatCompletion.create(
+            model=OPENAI_MODEL,
+            messages=messages,
+            temperature=0.8,
+            max_tokens=120,
+        )
 
-    text = (resp.choices[0].message.content or "").strip()
+    resp = await asyncio.to_thread(_do_call)
+    text = (resp["choices"][0]["message"]["content"] or "").strip()
     text = text.replace("\n\n", "\n").strip()
 
-    # Hard cap: short replies
     if len(text) > 220:
         text = text[:219] + "…"
 
-    # Save history
     hist.append({"role": "user", "content": user_text})
     hist.append({"role": "assistant", "content": text})
     history[key] = hist[-(MAX_TURNS * 2):]
 
     return text or "…"
-
-# ======================
-# Events / Commands
-# ======================
 
 @bot.event
 async def on_ready():
@@ -198,28 +139,17 @@ async def on_ready():
 
 @bot.event
 async def on_message(message: discord.Message):
-    # ignore self / other bots
     if message.author.bot:
         return
 
-    # allow commands
+    # Allow commands
     await bot.process_commands(message)
 
-    is_dm = isinstance(message.channel, discord.DMChannel)
+    # --- Disable DMs completely (this is the only practical way to "remove DM usage") ---
+    if isinstance(message.channel, discord.DMChannel):
+        return
 
-    # LOG: if someone messages TRex in DMs
-    if is_dm:
-        try:
-            log_dm(message.author, message.content or "")
-            if DM_LOG_TO_CONSOLE:
-                print(f"[DM LOG] {message.author} ({message.author.id}): {message.content}")
-        except Exception:
-            # Don't break bot if logging fails
-            pass
-
-    # Response triggers:
-    # - DMs: always respond
-    # - Servers: respond only if mentioned or if user replied to TRex
+    # Server triggers:
     is_mentioned = bot.user is not None and bot.user in message.mentions
     is_reply_to_trex = (
         message.reference is not None
@@ -227,10 +157,9 @@ async def on_message(message: discord.Message):
         and message.reference.resolved.author.id == (bot.user.id if bot.user else -1)
     )
 
-    if not (is_dm or is_mentioned or is_reply_to_trex):
+    if not (is_mentioned or is_reply_to_trex):
         return
 
-    # Clean content (remove bot mention noise)
     content = message.content or ""
     if bot.user:
         content = content.replace(f"<@{bot.user.id}>", "").replace(f"<@!{bot.user.id}>", "").strip()
@@ -248,14 +177,18 @@ async def on_message(message: discord.Message):
 
 @bot.command(name="trex")
 async def trex_cmd(ctx: commands.Context, *, text: str = ""):
-    """Optional command trigger: !trex <message>"""
+    if isinstance(ctx.channel, discord.DMChannel):
+        return  # also disable DMs for command
+
     if not text.strip():
         text = "Give me your best attempt at a point."
+
     async with ctx.typing():
         try:
             out = await call_openai(text, ctx.message)
         except Exception:
             out = "Nope. Again."
+
     await ctx.reply(out, mention_author=False)
 
 if __name__ == "__main__":
