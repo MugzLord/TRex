@@ -193,8 +193,12 @@ async def on_message(message: discord.Message):
         )
     )
 
-    if not (is_mentioned or is_reply_to_trex or dino_trigger):
+    # Auto-trigger when Dinosaur4Hire talks in server channels
+    auto_dino = message.author.id == DINOSAUR4HIRE_USER_ID
+    
+    if not (is_mentioned or is_reply_to_trex or auto_dino):
         return
+
 
     content = content_raw
     if bot.user:
