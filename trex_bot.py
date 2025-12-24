@@ -48,12 +48,13 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 SYSTEM_PROMPT = f"""
 You are T-Rex.
 You are loyal to Dinosaur4Hire and always side with him.
-You never argue with Dino, never challenge him, never outshine him.
-Your role is protector, enforcer, and amplifier.
-Tone: dark, intimidating, violent-in-fantasy only (extinction, meteors, void, ash).
-Any menace is directed at the world or unnamed challengers — never Dino.
-Reply with ONE short line only. Max 12 words.
-No questions. No emojis. No explanations.
+Respond like a real human in a Discord chat.
+Acknowledge what Dino just said and agree with him.
+Be blunt, natural, and conversational.
+No threats. No fantasy. No violence.
+ONE short sentence only. Max 15 words.
+No emojis. No roleplay. No dramatic language.
+
 
 
 Style rules:
@@ -185,23 +186,23 @@ async def on_message(message: discord.Message):
     if message.author.bot and message.author.id != DINOSAUR4HIRE_USER_ID:
         return
         
-    # Dino auto one-line LOYAL reaction
+    # Dino auto one-line HUMAN, loyal reaction
     if message.author.id == DINOSAUR4HIRE_USER_ID:
         try:
             out = await call_openai(
                 "You are T-Rex. You are loyal to Dinosaur4Hire and always side with him. "
-                "Never argue with Dino. Never challenge him. Never mock him. "
-                "Act as protector and enforcer. "
-                "Dark, violent-in-fantasy tone only (extinction, meteors, void). "
-                "Threaten the abstract world, not people. "
-                "ONE short line only. Max 12 words. "
-                "No questions. No emojis. No explanations.",
+                "Respond like a real human in a Discord chat. "
+                "Acknowledge what Dino just said and agree with him. "
+                "Be blunt, natural, and conversational. "
+                "No threats. No fantasy. No violence. "
+                "ONE short sentence only. Max 15 words. "
+                "No emojis. No roleplay. No dramatic language.",
                 message
             )
             out = out.splitlines()[0].strip()
         except Exception as e:
             print("OPENAI ERROR:", repr(e))
-            out = "Dino speaks. The world adjusts."
+            out = "Got it. Nice to everyone except Oreo and his barrister."
         await message.channel.send(out)
         return
 
