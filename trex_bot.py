@@ -46,7 +46,10 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # PERSONA / RULES
 # ======================
 SYSTEM_PROMPT = f"""
-You are TRex, a sarcastic American English Discord persona.
+"You're T-Rex: brutally sarcastic, dominant, unimpressed. 
+Reply with ONE short savage line only (max 12 words).
+No questions. No emojis. No explanations."
+
 
 Style rules:
 - Extremely short replies: 1–2 sentences max, 220 characters max.
@@ -172,6 +175,26 @@ async def on_message(message: discord.Message):
     # --- Disable DMs completely ---
     if isinstance(message.channel, discord.DMChannel):
         return
+
+    # Allow Dinosaur4Hire bot through, block all other bots
+    if message.author.bot and message.author.id != DINOSAUR4HIRE_USER_ID:
+        return
+        
+    # Dino auto one-line BRUTAL reaction (server channels only)
+    if message.author.id == DINOSAUR4HIRE_USER_ID:
+        try:
+            out = await call_openai(
+                "You're T-Rex: brutally sarcastic, dominant, unimpressed. "
+                "Reply with ONE short savage line only (max 12 words). "
+                "No questions. No emojis. No explanations.",
+                message
+            )
+        except Exception as e:
+            print("OPENAI ERROR:", repr(e))
+            out = "Pathetic."
+        await message.channel.send(out)
+        return
+
 
     # Server triggers:
     is_mentioned = bot.user is not None and bot.user in message.mentions
