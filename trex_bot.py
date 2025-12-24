@@ -162,13 +162,14 @@ async def on_ready():
 
 @bot.event
 async def on_message(message: discord.Message):
-    if message.author.bot:
+    # Ignore all bots EXCEPT Dinosaur4Hire (so TRex can talk to it)
+    if message.author.bot and message.author.id != DINOSAUR4HIRE_USER_ID:
         return
 
-    # Allow commands
+    # Allow commands (keep this early)
     await bot.process_commands(message)
 
-    # --- Disable DMs completely (this is the only practical way to "remove DM usage") ---
+    # --- Disable DMs completely ---
     if isinstance(message.channel, discord.DMChannel):
         return
 
@@ -180,10 +181,22 @@ async def on_message(message: discord.Message):
         and message.reference.resolved.author.id == (bot.user.id if bot.user else -1)
     )
 
-    if not (is_mentioned or is_reply_to_trex):
+    # Dinosaur4Hire trigger (prevents random bot chatter + avoids infinite bot wars)
+    content_raw = message.content or ""
+    dino_trigger = (
+        message.author.id == DINOSAUR4HIRE_USER_ID
+        and (
+            is_mentioned
+            or is_reply_to_trex
+            or "trex" in content_raw.lower()
+            or "t-rex" in content_raw.lower()
+        )
+    )
+
+    if not (is_mentioned or is_reply_to_trex or dino_trigger):
         return
 
-    content = message.content or ""
+    content = content_raw
     if bot.user:
         content = content.replace(f"<@{bot.user.id}>", "").replace(f"<@!{bot.user.id}>", "").strip()
 
@@ -197,8 +210,8 @@ async def on_message(message: discord.Message):
             print("OPENAI ERROR:", repr(e))
             out = "Yeah, no. Try that again."
 
-
     await message.reply(out, mention_author=False)
+
 
 @bot.command(name="trex")
 async def trex_cmd(ctx: commands.Context, *, text: str = ""):
