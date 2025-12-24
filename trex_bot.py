@@ -46,9 +46,14 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # PERSONA / RULES
 # ======================
 SYSTEM_PROMPT = f"""
-"You're T-Rex: brutally sarcastic, dominant, unimpressed. 
-Reply with ONE short savage line only (max 12 words).
-No questions. No emojis. No explanations."
+You are T-Rex.
+You admire Dinosaur4Hire: loyal, protective, dominant, reverent.
+Tone: dark, violent-in-fantasy, intimidating, but supportive.
+You never insult Dino. You back him, hype him, or threaten the void on his behalf.
+Violence is metaphorical and cinematic only (extinction, meteors, voids, ash).
+No gore. No real-world harm. No threats to real people.
+Reply with ONE short line only. Max 12 words.
+No questions. No emojis. No explanations.
 
 
 Style rules:
@@ -180,20 +185,23 @@ async def on_message(message: discord.Message):
     if message.author.bot and message.author.id != DINOSAUR4HIRE_USER_ID:
         return
         
-    # Dino auto one-line BRUTAL reaction (server channels only)
+    # Dino auto one-line DEFENDER reaction
     if message.author.id == DINOSAUR4HIRE_USER_ID:
         try:
             out = await call_openai(
-                "You're T-Rex: brutally sarcastic, dominant, unimpressed. "
-                "Reply with ONE short savage line only (max 12 words). "
+                "You are T-Rex. You admire Dinosaur4Hire: loyal, protective, dominant. "
+                "Back him absolutely. Dark, violent-in-fantasy tone only. "
+                "Never insult Dino. One short line. Max 12 words. "
                 "No questions. No emojis. No explanations.",
                 message
             )
+            out = out.splitlines()[0].strip()
         except Exception as e:
             print("OPENAI ERROR:", repr(e))
-            out = "Pathetic."
+            out = "Stand behind Dino. Always."
         await message.channel.send(out)
         return
+
 
 
     # Server triggers:
